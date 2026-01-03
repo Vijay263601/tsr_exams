@@ -1,5 +1,5 @@
 /*************************************************
- * TSR EXAMS – STUDENT EXAM SCRIPT (FINAL)
+ * TSR EXAMS – STUDENT EXAM SCRIPT (STRICT MODE)
  *************************************************/
 
 /* ================= UTIL ================= */
@@ -29,11 +29,6 @@ let timeLeft = 0;
 let timerInterval = null;
 let examSubmitted = false;
 
-// Anti-cheat
-let violationCount = 0;
-const MAX_WARNINGS = 1;
-let lastVisibilityTime = 0;
-
 /* ================= INIT ================= */
 
 if (!examId) {
@@ -55,25 +50,18 @@ document.addEventListener("selectstart", e => e.preventDefault());
 });
 
 document.addEventListener("keydown", e => {
-  if (
-    e.ctrlKey &&
-    ["c", "v", "x"].includes(e.key.toLowerCase())
-  ) {
+  if (e.ctrlKey && ["c", "v", "x"].includes(e.key.toLowerCase())) {
     e.preventDefault();
     warningEl.innerText = "⚠️ Copy / Paste is not allowed";
   }
 });
 
-/* ================= DISABLE REFRESH ================= */
+/* ================= BLOCK REFRESH ================= */
 
 document.addEventListener("keydown", e => {
-  if (
-    e.key === "F5" ||
-    (e.ctrlKey && e.key.toLowerCase() === "r")
-  ) {
+  if (e.key === "F5" || (e.ctrlKey && e.key.toLowerCase() === "r")) {
     e.preventDefault();
-    warningEl.innerText = "⚠️ Refresh is not allowed";
-    registerViolation();
+    autoSubmit("REFRESH_ATTEMPT");
   }
 });
 
@@ -81,18 +69,13 @@ window.addEventListener("beforeunload", e => {
   if (!examSubmitted) {
     e.preventDefault();
     e.returnValue = "";
-    registerViolation();
   }
 });
 
 /* ================= LOAD EXAM ================= */
 
 function loadExam() {
-  fetch(
-    API_URL +
-      "?type=GET_EXAM&examId=" +
-      encodeURIComponent(examId)
-  )
+  fetch(API_URL + "?type=GET_EXAM&examId=" + encodeURIComponent(examId))
     .then(res => res.json())
     .then(data => {
       if (data.status !== "EXAM_LOADED") {
@@ -101,7 +84,6 @@ function loadExam() {
       }
 
       examTitle.innerText = data.exam.examName;
-
       timeLeft = Number(data.exam.duration) * 60;
       startTimer();
 
@@ -119,7 +101,6 @@ function startTimer() {
   updateTimer();
   timerInterval = setInterval(() => {
     timeLeft--;
-
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
       autoSubmit("TIME_OVER");
@@ -132,9 +113,7 @@ function updateTimer() {
   const m = Math.floor(timeLeft / 60);
   const s = timeLeft % 60;
   timerEl.innerText =
-    String(m).padStart(2, "0") +
-    ":" +
-    String(s).padStart(2, "0");
+    String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 }
 
 /* ================= QUESTIONS ================= */
@@ -175,53 +154,46 @@ function renderQuestions(questions) {
   });
 }
 
-/* ================= ANTI-CHEAT ================= */
+/* ================= STRICT ANTI-CHEAT ================= */
 
 function enableAntiCheat() {
+
+  // Force fullscreen ONCE
   document.body.addEventListener(
     "click",
     requestFullscreenOnce,
     { once: true }
   );
 
-  document.addEventListener("visibilitychange", () => {
-    if (examSubmitted) return;
-
-    const now = Date.now();
-    if (now - lastVisibilityTime < 1000) return;
-    lastVisibilityTime = now;
-
-    if (document.hidden) {
-      registerViolation();
+  // ❌ EXIT FULLSCREEN = IMMEDIATE SUBMIT
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement && !examSubmitted) {
+      autoSubmit("EXIT_FULLSCREEN");
     }
   });
 
-  document.addEventListener("fullscreenchange", () => {
-    if (examSubmitted) return;
-    if (!document.fullscreenElement) {
-      registerViolation();
+  // ❌ TAB SWITCH / MINIMIZE = IMMEDIATE SUBMIT
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && !examSubmitted) {
+      autoSubmit("TAB_SWITCH");
+    }
+  });
+
+  // ❌ ESC KEY = IMMEDIATE SUBMIT
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !examSubmitted) {
+      e.preventDefault();
+      autoSubmit("ESC_PRESSED");
     }
   });
 }
 
 function requestFullscreenOnce() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
+    document.documentElement.requestFullscreen().catch(() => {
+      autoSubmit("FULLSCREEN_DENIED");
+    });
   }
-}
-
-function registerViolation() {
-  if (examSubmitted) return;
-
-  violationCount++;
-
-  if (violationCount <= MAX_WARNINGS) {
-    warningEl.innerText =
-      "⚠️ Warning: Do not switch tabs, refresh, or exit fullscreen again!";
-    return;
-  }
-
-  autoSubmit("CHEATING");
 }
 
 /* ================= SUBMIT ================= */
@@ -243,19 +215,17 @@ function autoSubmit(reason) {
     examId: examId,
     student: JSON.parse(sessionStorage.getItem("student")) || {},
     answers: answers,
-    tabSwitch: violationCount,
+    tabSwitch: 1,
     cheated: reason !== "MANUAL"
   };
 
   fetch(API_URL, {
     method: "POST",
     body: JSON.stringify(payload)
-  })
-    .then(() => {
-      sessionStorage.removeItem("student");
-      window.location.replace("thankyou.html");
-    })
-    .catch(() => alert("Submission failed"));
+  }).finally(() => {
+    sessionStorage.removeItem("student");
+    window.location.replace("thankyou.html");
+  });
 }
 
 function disableInputs() {
