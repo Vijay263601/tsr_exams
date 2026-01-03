@@ -2,11 +2,6 @@
  * TSR EXAMS – STUDENT EXAM SCRIPT (STRICT MODE)
  *************************************************/
 
-/* ================= CONFIG ================= */
-
-// GitHub Pages base path (IMPORTANT)
-const BASE_PATH = "/tsr_exams";
-
 /* ================= UTIL ================= */
 
 function shuffleArray(arr) {
@@ -89,7 +84,6 @@ function loadExam() {
       }
 
       examTitle.innerText = data.exam.examName;
-
       timeLeft = Number(data.exam.duration) * 60;
       startTimer();
 
@@ -148,8 +142,8 @@ function renderQuestions(questions) {
       html += `
         <label>
           <input type="radio"
-                 name="${q.qid}"
-                 onchange="answers['${q.qid}']='${opt.letter}'">
+            name="${q.qid}"
+            onchange="answers['${q.qid}']='${opt.letter}'">
           ${opt.text}
         </label><br>
       `;
@@ -164,28 +158,28 @@ function renderQuestions(questions) {
 
 function enableAntiCheat() {
 
-  // Force fullscreen once
+  // Force fullscreen ONCE
   document.body.addEventListener(
     "click",
     requestFullscreenOnce,
     { once: true }
   );
 
-  // Exit fullscreen = immediate submit
+  // ❌ EXIT FULLSCREEN = IMMEDIATE SUBMIT
   document.addEventListener("fullscreenchange", () => {
     if (!document.fullscreenElement && !examSubmitted) {
       autoSubmit("EXIT_FULLSCREEN");
     }
   });
 
-  // Tab switch / minimize = immediate submit
+  // ❌ TAB SWITCH / MINIMIZE = IMMEDIATE SUBMIT
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && !examSubmitted) {
       autoSubmit("TAB_SWITCH");
     }
   });
 
-  // ESC key = immediate submit
+  // ❌ ESC KEY = IMMEDIATE SUBMIT
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && !examSubmitted) {
       e.preventDefault();
@@ -230,9 +224,7 @@ function autoSubmit(reason) {
     body: JSON.stringify(payload)
   }).finally(() => {
     sessionStorage.removeItem("student");
-
-    // ✅ GitHub Pages safe redirect
-    window.location.replace(`${BASE_PATH}/exam/thankyou.html`);
+    window.location.replace("thankyou.html");
   });
 }
 
